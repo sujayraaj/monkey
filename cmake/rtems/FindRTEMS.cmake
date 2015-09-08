@@ -1,15 +1,12 @@
-# Let's have fun!
+set(ARCH arm )
+set(BSP xilinx_zynq_a9_qemu )
+set(BSP_CFLAGS "-march=armv7-a -mthumb -mfpu=neon -mfloat-abi=hard -mtune=cortex-a9" )
+set(RTEMS_CFLAGS "${BSP_CFLAGS} -O0 -g -qrtems -B${BSP_DIR}/${ARCH}-rtems4.11/lib" )
+set(RTEMS_CFLAGS "${RTEMS_CFLAGS} -B${BSP_DIR}/${ARCH}-rtems4.11/xilinx_zynq_a9_qemu/lib/" )
+set(RTEMS_CFLAGS "${RTEMS_CFLAGS} --specs bsp_specs")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${RTEMS_CFLAGS}")
 
-cmake_minimum_required(VERSION 2.8)
-project(monkey C)
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
-set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
-
-add_definitions(-DHAVE_SYS_SYSCALL=1)
-if(PLATFORM STREQUAL "rtems")
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rtems/")
-find_package(RTEMS REQUIRED)
-else () 
+find_package(RTEMSNetConf REQUIRED)
 
 # CMake includes
 include(CheckSymbolExists)
@@ -22,11 +19,13 @@ include(GNUInstallDirs)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -Wall -Wextra")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__FILENAME__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
 
+
 # Monkey Version
 set(MK_VERSION_MAJOR  1)
 set(MK_VERSION_MINOR  6)
-set(MK_VERSION_PATCH  2)
+set(MK_VERSION_PATCH  0)
 set(MK_VERSION_STR "${MK_VERSION_MAJOR}.${MK_VERSION_MINOR}.${MK_VERSION_PATCH}")
+
 
 # ============================================
 # ============= BUILD OPTIONS ================
@@ -37,28 +36,27 @@ option(BUILD_LOCAL         "Build locally, no install"    No)
 
 # Monkey Core
 option(WITH_DEBUG          "Build with debug symbols"     No)
-option(WITH_ACCEPT         "Use accept(2) system call"    No)
-option(WITH_ACCEPT4        "Use accept4(2) system call"  Yes)
+option(WITH_ACCEPT         "Use accept(2) system call"   Yes)
+option(WITH_ACCEPT4        "Use accept4(2) system call"   No)
 option(WITH_LINUX_KQUEUE   "Use Linux kqueue emulator"    No)
 option(WITH_TRACE          "Enable Trace mode"            No)
 option(WITH_UCLIB          "Enable uClib libc support"    No)
 option(WITH_MUSL           "Enable Musl libc support"     No)
-option(WITH_BACKTRACE      "Enable Backtrace feature"    Yes)
+option(WITH_BACKTRACE      "Enable Backtrace feature"     No)
 option(WITH_LINUX_TRACE    "Enable Lttng support"         No)
 option(WITH_PTHREAD_TLS    "Use old Pthread TLS mode"     No)
-option(WITH_SYSTEM_MALLOC  "Use system memory allocator"  No)
-option(WITH_MBEDTLS_SHARED "User mbedtls shared lib"      No)
+option(WITH_SYSTEM_MALLOC "Use system memory allocator"  Yes)
 
 # Plugins: what should be build ?, these options
 # will be processed later on the plugins/CMakeLists.txt file
-option(WITH_PLUGIN_AUTH          "Basic authentication"    Yes)
-option(WITH_PLUGIN_CGI           "CGI support"             Yes)
-option(WITH_PLUGIN_CHEETAH       "Cheetah Shell Interface" Yes)
-option(WITH_PLUGIN_DIRLISTING    "Directory Listing"       Yes)
-option(WITH_PLUGIN_FASTCGI       "FastCGI"                 Yes)
+option(WITH_PLUGIN_AUTH          "Basic authentication"     No)
+option(WITH_PLUGIN_CGI           "CGI support"              No)
+option(WITH_PLUGIN_CHEETAH       "Cheetah Shell Interface"  No)
+option(WITH_PLUGIN_DIRLISTING    "Directory Listing"        No)
+option(WITH_PLUGIN_FASTCGI       "FastCGI"                  No)
 option(WITH_PLUGIN_LIANA         "Basic network layer"     Yes)
-option(WITH_PLUGIN_LOGGER        "Log Writer"              Yes)
-option(WITH_PLUGIN_MANDRIL       "Security"                Yes)
+option(WITH_PLUGIN_LOGGER        "Log Writer"               No)
+option(WITH_PLUGIN_MANDRIL       "Security"                 No)
 option(WITH_PLUGIN_TLS           "TLS/SSL support"          No)
 
 # Options to build Monkey with/without binary and
@@ -66,14 +64,10 @@ option(WITH_PLUGIN_TLS           "TLS/SSL support"          No)
 # one target binary).
 option(WITHOUT_BIN               "Do not build binary"      No)
 option(WITHOUT_CONF              "Skip configuration files" No)
-option(WITH_STATIC_LIB_MODE      "Static library mode"      No)
+option(WITH_STATIC_LIB_MODE      "Static library mode"     Yes)
 
-if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  set(WITH_ACCEPT        1)
-  set(WITH_ACCEPT4       0)
-  set(WITH_SYSTEM_MALLOC 1)
-endif()
-
+# SYSCALL
+add_definitions(-DHAVE_SYS_SYSCALL=0)
 # This variable allows to define a list of plugins that must
 # be included when building the project. The value are the plugins
 # names separated by a colon, e.g: -DWITH_PLUGINS=cgi,mbedtls
@@ -118,21 +112,8 @@ if(WITH_DEBUG)
 endif()
 
 # Check for accept(2) v/s accept(4)
-if(WITH_ACCEPT)
-  set(WITH_ACCEPT4 No)
-  add_definitions(-DACCEPT_GENERIC)
-elseif(WITH_ACCEPT4)
-  # accept(4) requires _GNU_SOURCE defined
-  list(APPEND CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
-  check_symbol_exists(accept4 sys/socket.h HAVE_ACCEPT4)
-  list(REMOVE_ITEM CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
-
-  # check the results
-  if(NOT HAVE_ACCEPT4)
-    # switch back to accept(2)
-    set(WITH_ACCEPT Yes)
-  endif()
-endif()
+set(WITH_ACCEPT4 No)
+add_definitions(-DACCEPT_GENERIC)
 
 # Check for Linux Kqueue library emulator
 if(WITH_LINUX_KQUEUE)
@@ -185,35 +166,15 @@ if(WITH_PTHREAD_TLS)
 endif()
 
 # Use system memory allocator instead of Jemalloc
-if(WITH_SYSTEM_MALLOC)
-  add_definitions(-DMALLOC_LIBC)
-else()
-  # Prepare the Jemalloc build
-  add_definitions(-DMALLOC_JEMALLOC)
-  add_definitions(-DJEMALLOC_MANGLE)
-
-  # Link to Jemalloc as an external dependency
-  ExternalProject_Add(jemalloc
-    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/jemalloc
-    CONFIGURE_COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/deps/jemalloc/configure --with-jemalloc-prefix=je_ --enable-cc-silence --prefix=<INSTALL_DIR>
-    CFLAGS=-std=gnu99\ -Wall\ -pipe\ -g3\ -O3\ -funroll-loops
-    BUILD_COMMAND ${MAKE}
-    INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/
-    INSTALL_COMMAND $(MAKE) install_lib_static install_include)
-
-  add_library(libjemalloc STATIC IMPORTED GLOBAL)
-  set_target_properties(libjemalloc PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/lib/libjemalloc_pic.a")
-  add_dependencies(libjemalloc jemalloc)
-  include_directories("${CMAKE_CURRENT_BINARY_DIR}/include/")
-endif()
+add_definitions(-DMALLOC_LIBC)
 
 # ============================================
 # =========== CONFIGURATION FILES=============
 # ============================================
 
 # Default values for conf/monkey.conf
-set(MK_CONF_LISTEN       "2001")
-set(MK_CONF_WORKERS      "0")
+set(MK_CONF_LISTEN       "${NET_CFG_SELF_IP}:${NET_CFG_PORT}")
+set(MK_CONF_WORKERS      "8")
 set(MK_CONF_TIMEOUT      "15")
 set(MK_CONF_PIDFILE      "monkey.pid")
 set(MK_CONF_USERDIR      "public_html")
@@ -226,29 +187,16 @@ set(MK_CONF_KA_TIMEOUT   "5")
 set(MK_CONF_KA_MAXREQ    "1000")
 set(MK_CONF_REQ_SIZE     "32")
 set(MK_CONF_SYMLINK      "Off")
+set(MK_CONF_TRANSPORT    "liana")
 set(MK_CONF_DEFAULT_MIME "text/plain")
 set(MK_CONF_FDT          "On")
 set(MK_CONF_OVERCAPACITY "Resist")
 
 # Default values for conf/sites/default
-set(MK_VH_SERVERNAME     "127.0.0.1")
+set(MK_VH_SERVERNAME     "${NET_CFG_SELF_IP}")
 set(MK_VH_DOCUMENT_ROOT  MK_DATADIR)
 set(MK_VH_LOG_ACCESS     MK_LOGDIR)
 set(MK_VH_LOG_ERROR      MK_LOGDIR)
-
-
-# Paths
-if(APPLE)
-  set(CMAKE_MACOSX_RPATH ${CMAKE_MACOSX_RPATH};${CMAKE_INSTALL_FULL_LIBDIR}/monkey)
-endif()
-
-if(DEFAULT_PORT)
-  set(MK_CONF_LISTEN  ${DEFAULT_PORT})
-endif()
-
-if(DEFAULT_USER)
-  set(MK_CONF_USER ${DEFAULT_USER})
-endif()
 
 if(BUILD_LOCAL)
   # This mode aims to be backward compatible with older versions of Monkey where
@@ -257,45 +205,37 @@ if(BUILD_LOCAL)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/lib/monkey")
   set(MK_PATH_CONF     "${CMAKE_CURRENT_BINARY_DIR}/conf/")
-  set(MK_PATH_PIDPATH  "${CMAKE_CURRENT_BINARY_DIR}")
-  set(MK_PIDFILE       "${MK_CONF_PIDFILE}")
+  set(MK_PATH_PIDFILE  "${CMAKE_CURRENT_BINARY_DIR}")
   set(MK_PATH_WWW      "${CMAKE_CURRENT_SOURCE_DIR}/htdocs/")
   set(MK_PATH_LOG      "${CMAKE_CURRENT_BINARY_DIR}/log/")
   file(MAKE_DIRECTORY  ${MK_PATH_LOG})
 else()
   # Custom SYSCONFDIR
   if(NOT INSTALL_SYSCONFDIR)
-    set(MK_PATH_CONF ${CMAKE_INSTALL_FULL_SYSCONFDIR}/monkey/ CACHE STRING "Server configuration")
+    set(MK_PATH_CONF ${FILESYSTEM_DIR}/etc/monkey CACHE STRING "Server configuration")
   else()
-    set(MK_PATH_CONF ${INSTALL_SYSCONFDIR}/ CACHE STRING "Server configuration")
+    set(MK_PATH_CONF ${FILESYSTEM_DIR}/etc/monkey CACHE STRING "Server configuration")
   endif()
 
   # Custom LOGDIR
   if(NOT INSTALL_LOGDIR)
-    set(MK_PATH_LOG ${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/log/monkey CACHE STRING "Server logs")
+    set(MK_PATH_LOG ${FILESYSTEM_DIR}/var/log/monkey CACHE STRING "Server logs")
   else()
-    set(MK_PATH_LOG ${INSTALL_LOGDIR} CACHE STRING "Server logs")
-  endif()
-
-  # Custom PIDPATH
-  if(NOT PID_PATH)
-    set(MK_PATH_PIDPATH ${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/run/ CACHE STRING "Server PID path")
-  else()
-    set(MK_PATH_PIDPATH ${PID_PATH} CACHE STRING "Server PID path")
+    set(MK_PATH_LOG ${FILESYSTEM_DIR}/var/log/monkey CACHE STRING "Server logs")
   endif()
 
   # Custom PIDFILE
   if(NOT PID_FILE)
-    set(MK_PIDFILE ${MK_CONF_PIDFILE} CACHE STRING "Server pid file name")
+    set(MK_PATH_PIDFILE ${FILESYSTEM_DIR}/var/run CACHE STRING "Server PID")
   else()
-    set(MK_PIDFILE ${PID_FILE} CACHE STRING "Server pid file name")
-endif()
+    set(MK_PATH_PIDFILE ${FILESYSTEM_DIR}/var/run CACHE STRING "Server PID")
+  endif()
 
   # Custom WEBROOT
   if(NOT INSTALL_WEBROOTDIR)
-    set(MK_PATH_WWW ${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/www/monkey CACHE STRING "Server Web documents")
+    set(MK_PATH_WWW ${FILESYSTEM_DIR}/var/www/monkey CACHE STRING "Server Web documents")
   else()
-    set(MK_PATH_WWW ${INSTALL_WEBROOTDIR} CACHE STRING "Server Web documents")
+    set(MK_PATH_WWW ${FILESYSTEM_DIR}/var/www/monkey CACHE STRING "Server Web documents")
   endif()
 
   # Headers
@@ -328,14 +268,14 @@ include_directories(monkey)
 # plugins  : plugins for mk_server
 # mk_server: server code base: plugins, protocols, scheduler.. (no executable)
 # mk_bin   : server executable
-
-add_subdirectory(man)
+#
 add_subdirectory(mk_core)
 add_subdirectory(plugins)
 add_subdirectory(mk_server)
 if(NOT WITHOUT_BIN)
   add_subdirectory(mk_bin)
 endif()
+#add_subdirectory(mk_bin/rtems)
 
 # Configuration, headers generation and others
 if(NOT WITHOUT_CONF)
@@ -346,6 +286,6 @@ add_subdirectory(include)
 
 # Install (missings ?) paths
 install(DIRECTORY DESTINATION ${MK_PATH_LOG})
-install(DIRECTORY DESTINATION ${MK_PATH_PIDPATH})
+install(DIRECTORY DESTINATION ${MK_PATH_PIDFILE})
 install(DIRECTORY DESTINATION ${MK_PATH_WWW})
-endif()
+
