@@ -25,7 +25,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#ifdef __rtems__
+#ifndef SA_NODEFER
 #define MK_SIGNALS_FLAGS SA_SIGINFO
 #else
 #define MK_SIGNALS_FLAGS SA_SIGINFO | SA_NODEFER
