@@ -1,15 +1,12 @@
-if(CMAKE_SYSTEM_NAME STREQUAL "rtems")
 set(src
+  monkey.c
+  mk_signals.c
+  )
+if(CMAKE_SYSTEM_NAME STREQUAL "rtems")
+set(src 
   rtems/rtems_network_config.c
   rtems/rtems_filesystem.c
-  monkey.c
-  mk_signals.c
-  )
-else()
-set(src
-  monkey.c
-  mk_signals.c
-  )
+  ${src})
 endif()
 
 add_executable(monkey-bin ${src})
