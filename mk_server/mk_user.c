@@ -95,7 +95,7 @@ int mk_user_set_uidgid()
 
     /* Launched by root ? */
     if (geteuid() == 0 && mk_config->user) {
-#ifndef __rtems__
+#ifdef RLIMIT_NOFILE
         struct rlimit rl;
 
         if (getrlimit(RLIMIT_NOFILE, &rl)) {
