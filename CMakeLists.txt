@@ -5,11 +5,11 @@ project(monkey C)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
 set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
 
-add_definitions(-DHAVE_SYS_SYSCALL=1)
 if(PLATFORM STREQUAL "rtems")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rtems/")
 find_package(RTEMS REQUIRED)
 else () 
+add_definitions(-DHAVE_SYS_SYSCALL=1)
 
 # CMake includes
 include(CheckSymbolExists)
