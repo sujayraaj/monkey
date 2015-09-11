@@ -33,7 +33,7 @@
 #include <sys/prctl.h>
 #endif
 
-#ifdef __rtems__
+#ifndef O_CLOEXEC
 #define MK_UTILS_OPEN_FLAGS ( O_WRONLY | O_CREAT )
 #else
 #define MK_UTILS_OPEN_FLAGS ( O_WRONLY | O_CREAT | O_CLOEXEC )
