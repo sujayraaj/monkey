@@ -117,7 +117,7 @@ int mk_liana_send_file(int socket_fd, int file_fd, off_t *file_offset,
 #elif defined(__rtems__)
     ret=0;
     uint8_t success=0;
-    size_t bufsize=1000000;
+    size_t bufsize=10240;
     uint8_t *buffer= (uint8_t*)malloc(bufsize*sizeof(uint8_t));
 
     if( !buffer )
@@ -142,8 +142,13 @@ int mk_liana_send_file(int socket_fd, int file_fd, off_t *file_offset,
             int bytes_written = write(socket_fd, p, bytes_read);
 
             if (bytes_written <= 0) {
-                success = 0;
-		return -1;
+                if (errno == EAGAIN){
+                    lseek(file_fd, ret, SEEK_CUR);
+                    success = 1;
+                    return ret;
+                }
+                else
+                    return -1;
             }
 
             ret+=bytes_written;
