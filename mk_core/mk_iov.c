@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+	/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 
 /*  Monkey HTTP Server
  *  ==================
@@ -40,10 +40,12 @@ const mk_ptr_t mk_iov_equal = mk_ptr_init(MK_IOV_EQUAL);
 #ifdef __rtems__
 ssize_t rtems_writev(int fd, const struct iovec *vector, int count)
 {
+    #define min(a, b) ((a) > (b) ? (b) : (a))
     char *buffer;
     char *bp;
     size_t bytes, to_copy, copied;
     size_t i;
+    size_t copy;
     /* Find the total number of bytes to be written. */
     bytes = 0;
     for (i = 0; i < count; ++i)
@@ -55,8 +57,7 @@ ssize_t rtems_writev(int fd, const struct iovec *vector, int count)
     bp = buffer;
     for (i = 0; i < count; ++i)
     {
-        #define	min(a, b) ((a) > (b) ? (b) : (a))
-        size_t copy = min(vector[i].iov_len, to_copy);
+        copy = min(vector[i].iov_len, to_copy);
         (void) memcpy( bp, vector[i].iov_base, copy);
         bp += copy;
         to_copy -= copy;
